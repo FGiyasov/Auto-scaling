@@ -10,19 +10,19 @@ import websocket
 logging.basicConfig(level=logging.INFO)
 
 # Load sensitive credentials
-USER_PAT = My_PAT_SaaS_DWH_Tests.exa_password
-SYS_PAT = My_PAT_SaaS_DWH_Tests.exa_password
+USER_PAT = My_PAT_SaaS_DWH_Tests.MY_PAT
+SYS_PAT = "exa_pat_c4CqxtbypBarvT8rUAGrDwOHscwTxW1Ux4KJaPdB1aD6gE"
 
-if not USER_PAT:
+if not SYS_PAT:
     logging.error("Missing credentials in environment variables.")
     raise ValueError("Missing credentials in environment variables.")
 
 # Connection details (you already have these)
 EXASOL_CONNECTION_PARAMS = {
     'dsn': My_PAT_SaaS_DWH_Tests.exa_dsn,
-    'user': My_PAT_SaaS_DWH_Tests.Username,
-    'password': USER_PAT,
-    "superconnection": "Y"
+    'user': 'farkhod_giyasov',
+    'password': SYS_PAT
+    #"superconnection": "Y"
 }
 
 # Establish initial connection
@@ -74,8 +74,8 @@ DB_RAM
 # API Details
 account_id = My_PAT_SaaS_DWH_Tests.account_id
 db_id = My_PAT_SaaS_DWH_Tests.db_id
-list_clusters_url = f"https://cloud-staging.exasol.com/api/v1/accounts/{account_id}/databases/{db_id}/clusters"
-headers = {"Authorization": f"Bearer {USER_PAT}"}
+list_clusters_url = f"https://cloud.exasol.com/api/v1/accounts/{account_id}/databases/{db_id}/clusters"
+headers = {"Authorization": f"Bearer {SYS_PAT}"}
 
 # Track the last started cluster
 last_started_cluster = None

@@ -10,17 +10,17 @@ import websocket
 logging.basicConfig(level=logging.INFO)
 
 # Load sensitive credentials
-USER_PAT = My_PAT_SaaS_DWH_Tests.MY_PAT
-SYS_PAT = My_PAT_SaaS_DWH_Tests.SYS_PAT
+USER_PAT = My_PAT_SaaS_DWH_Tests.exa_password
+SYS_PAT = My_PAT_SaaS_DWH_Tests.exa_password
 
-if not SYS_PAT:
+if not USER_PAT:
     logging.error("Missing credentials in environment variables.")
     raise ValueError("Missing credentials in environment variables.")
 
 # Connection details (you already have these)
 EXASOL_CONNECTION_PARAMS = {
-    'dsn': 'zmrfa5r5hzcwjazdshh6mj7ati.clusters-staging.exasol.com',
-    'user': 'f_g_',
+    'dsn': My_PAT_SaaS_DWH_Tests.exa_dsn,
+    'user': My_PAT_SaaS_DWH_Tests.Username,
     'password': USER_PAT,
     "superconnection": "Y"
 }
@@ -34,7 +34,7 @@ def connect_to_db():
             f"EXAHOST={EXASOL_CONNECTION_PARAMS['dsn']};"
             f"UID={EXASOL_CONNECTION_PARAMS['user']};"
             f"PWD={EXASOL_CONNECTION_PARAMS['password']};"
-            f"SUPERCONNECTION={EXASOL_CONNECTION_PARAMS['superconnection']};"
+          #  f"SUPERCONNECTION={EXASOL_CONNECTION_PARAMS['superconnection']};"
         )
         logging.info("Successfully connected to the database.")
         return conn
@@ -422,12 +422,12 @@ def monitor_and_manage_clusters():
                                         # logging.info("Resetting threshold_exceeded_time after cluster start.")
 
                                         if wait_for_cluster_stability():
-                                            cluster_readiness_end_time = time.time() + (5 * 60)  # Set warm-up period
+                                            cluster_readiness_end_time = time.time() + (10 * 60)  # Set warm-up period
 
-                                            logging.info("The cluster is stable. Wait for 5 minutes for the cluster to warm up. No action will be taken during this time.")
+                                            logging.info("The cluster is stable. Wait for 10 minutes for the cluster to warm up. No action will be taken during this time.")
 
                                             # Wait for the warm-up period **here** instead of later in the loop
-                                            time.sleep(5 * 60)  
+                                            time.sleep(10 * 60)  
 
                                             logging.info("The worker cluster has warmed up. Now we proceed with the monitoring.")
                                         else:

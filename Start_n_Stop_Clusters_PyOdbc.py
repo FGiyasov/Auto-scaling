@@ -1,4 +1,4 @@
-import pyodbc
+import pyexasol
 import requests
 import logging
 import time
@@ -6,49 +6,83 @@ import My_PAT_SaaS_DWH_Tests # type: ignore
 from datetime import datetime
 import websocket
 
+# Set this to either "EXASOL" or "ADIDAS"
+ENVIRONMENT = "ADIDAS"
+
+if ENVIRONMENT == "EXASOL":
+    # Databricks Credentials
+    DATABRICKS_HOST = My_PAT_SaaS_DWH_Tests.EXA_Databricks_host_name
+    ACCESS_TOKEN = My_PAT_SaaS_DWH_Tests.EXA_Databricks_access_token
+    CATALOG = My_PAT_SaaS_DWH_Tests.EXA_Databricks_CATALOG
+
+    # Exasol Database connection details
+    EXASOL_CONNECTION_PARAMS = {
+        'dsn': My_PAT_SaaS_DWH_Tests.EXA_HOST_NAME,
+        'user': My_PAT_SaaS_DWH_Tests.USERNAME,
+        'password': My_PAT_SaaS_DWH_Tests.EXA_USER_PAT,  
+    }
+
+    DLHC_HOST = My_PAT_SaaS_DWH_Tests.DLHC_HOST
+    DLHC_TOKEN = My_PAT_SaaS_DWH_Tests.EXA_USER_PAT
+    ADI_ACCOUNT_ID = My_PAT_SaaS_DWH_Tests.EXA_ACCOUNT_ID
+    ADI_DB_ID = My_PAT_SaaS_DWH_Tests.EXA_DB_ID
+    DLHC_HEADERS = {
+            "Content-Type": "application/json",
+            "Authorization": f'Bearer {DLHC_TOKEN}'
+        }
+    PAT = My_PAT_SaaS_DWH_Tests.EXA_USER_PAT
+    if not PAT:
+        logging.error("Missing credentials in environment variables.")
+        raise ValueError("Missing credentials in environment variables.")
+    
+elif ENVIRONMENT == "ADIDAS":
+    # Databricks Credentials
+    DATABRICKS_HOST = My_PAT_SaaS_DWH_Tests.ADI_DATABRICKS_HOST
+    ACCESS_TOKEN = My_PAT_SaaS_DWH_Tests.ADI_DATABRICKS_SECRET_TOKEN
+    CATALOG = My_PAT_SaaS_DWH_Tests.ADI_DATABRICKS_CATALOG
+
+    # Exasol Database connection details
+    EXASOL_CONNECTION_PARAMS = {
+        'dsn': My_PAT_SaaS_DWH_Tests.ADI_HOST_NAME,
+        'user': My_PAT_SaaS_DWH_Tests.USERNAME,
+        'password': My_PAT_SaaS_DWH_Tests.ADI_USER_PAT,
+    }
+
+    DLHC_HOST = My_PAT_SaaS_DWH_Tests.DLHC_HOST
+    DLHC_TOKEN = My_PAT_SaaS_DWH_Tests.ADI_USER_PAT
+    ADI_ACCOUNT_ID = My_PAT_SaaS_DWH_Tests.ADI_ACCOUNT_ID
+    ADI_DB_ID = My_PAT_SaaS_DWH_Tests.ADI_DB_ID
+    DLHC_HEADERS = {
+            "Content-Type": "application/json",
+            "Authorization": f'Bearer {DLHC_TOKEN}'
+        }
+    
+    PAT = My_PAT_SaaS_DWH_Tests.ADI_USER_PAT
+    if not PAT:
+        logging.error("Missing credentials in environment variables.")
+        raise ValueError("Missing credentials in environment variables.")
+else:
+    raise ValueError("ENVIRONMENT must be 'EXASOL' or 'ADIDAS'")
+
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# Load sensitive credentials
-USER_PAT = My_PAT_SaaS_DWH_Tests.MY_PAT
-SYS_PAT = "exa_pat_c4CqxtbypBarvT8rUAGrDwOHscwTxW1Ux4KJaPdB1aD6gE"
-
-if not SYS_PAT:
-    logging.error("Missing credentials in environment variables.")
-    raise ValueError("Missing credentials in environment variables.")
-
-# Connection details (you already have these)
-EXASOL_CONNECTION_PARAMS = {
-    'dsn': My_PAT_SaaS_DWH_Tests.exa_dsn,
-    'user': 'farkhod_giyasov',
-    'password': SYS_PAT
-    #"superconnection": "Y"
-}
 
 # Establish initial connection
 def connect_to_db():
     """Connect to the Exasol database."""
     try:
-        conn = pyodbc.connect(
-            "DRIVER={EXASolution Driver};"
-            f"EXAHOST={EXASOL_CONNECTION_PARAMS['dsn']};"
-            f"UID={EXASOL_CONNECTION_PARAMS['user']};"
-            f"PWD={EXASOL_CONNECTION_PARAMS['password']};"
-          #  f"SUPERCONNECTION={EXASOL_CONNECTION_PARAMS['superconnection']};"
-        )
+        conn = pyexasol.connect(**EXASOL_CONNECTION_PARAMS)
         logging.info("Successfully connected to the database.")
         return conn
-    except pyodbc.Error as e:
+    except pyexasol.ExaError as e:
         logging.error(f"Failed to connect to database: {e}")
         exit()
 
 # Query to fetch session data
 query = """
-WITH SESSION_START_TIME AS (
-SELECT SESSION_ID, MAX (START_TIME) as START_TIME
-FROM EXA_DBA_AUDIT_SQL
-GROUP BY SESSION_ID),
-
+WITH 
 SESSION_WORKLOADS AS (
 SELECT 
 CLUSTER_NAME, 
@@ -63,19 +97,17 @@ EXA_CLUSTERS.CLUSTER_NAME,
 SESSION_WORKLOADS.SESSION_ID, 
 SESSION_WORKLOADS.STATUS, 
 SESSION_WORKLOADS.TEMP_DB_RAM,
-START_TIME,
 DB_RAM
         FROM EXA_CLUSTERS 
-        LEFT JOIN SESSION_WORKLOADS ON EXA_CLUSTERS.CLUSTER_NAME = SESSION_WORKLOADS.CLUSTER_NAME
-        LEFT JOIN SESSION_START_TIME ON SESSION_WORKLOADS.SESSION_ID = SESSION_START_TIME.SESSION_ID
-        ORDER BY 6 desc;
+        LEFT JOIN SESSION_WORKLOADS ON EXA_CLUSTERS.CLUSTER_NAME = SESSION_WORKLOADS.CLUSTER_NAME;
 """
 
+
+
 # API Details
-account_id = My_PAT_SaaS_DWH_Tests.account_id
-db_id = My_PAT_SaaS_DWH_Tests.db_id
-list_clusters_url = f"https://cloud.exasol.com/api/v1/accounts/{account_id}/databases/{db_id}/clusters"
-headers = {"Authorization": f"Bearer {SYS_PAT}"}
+
+list_clusters_url = f"https://cloud.exasol.com/api/v1/accounts/{ADI_ACCOUNT_ID}/databases/{ADI_DB_ID}/clusters"
+headers = {"Authorization": f"Bearer {PAT}"}
 
 # Track the last started cluster
 last_started_cluster = None
@@ -85,7 +117,7 @@ def is_connection_active(conn):
     try:
         conn.execute('SELECT 1')  # Run a simple query to check the connection
         return True
-    except (pyodbc.Error, websocket._exceptions.WebSocketConnectionClosedException) as e:
+    except (pyexasol.ExaError, websocket._exceptions.WebSocketConnectionClosedException) as e:
         logging.error(f"Connection error: {e}")
         return False
 
@@ -106,7 +138,7 @@ def calculate_cluster_loads(sessions, cluster_ids):
                 logging.error(f"Invalid session data {session}: could not convert to float")
                 temp_dbram = 0.0  # Fallback to 0.0 for invalid cases
         
-        db_ram = session[5]
+        db_ram = session[4]
         
         if cluster_id not in cluster_loads:
             cluster_loads[cluster_id] = {
@@ -320,17 +352,17 @@ def monitor_and_manage_clusters():
                     continue  # Skip the rest of the loop if reconnection fails        
 
             try:
-                cursor = conn.cursor()
-                cursor.execute(query)
-                sessions = cursor.fetchall()
+                sessions = conn.export_to_list(query)
                 logging.info(f"Fetched {len(sessions)} sessions from the database.\n")
-                
-            except pyodbc.Error as e:
+            except pyexasol.ExaError as e:
                 logging.error(f"Failed to execute query: {e}")
                 sessions = []
                 continue  
 
             if sessions:
+                # Only consider non-IDLE sessions as active
+                active_sessions = [s for s in sessions] # if s[2].upper() != "IDLE"]
+                number_of_active_sessions = len(active_sessions)
                 cluster_loads = calculate_cluster_loads(sessions, cluster_ids)
 
                 for cluster_id in cluster_ids:
@@ -345,11 +377,11 @@ def monitor_and_manage_clusters():
                             logging.info(f"TEMP_DB_RAM: {data['temp_dbram']}")
                             logging.info(f"DB_RAM: {data['db_ram']}")
                             logging.info(f"Number of queued sessions is {count_queued_sessions(sessions)}\n")
-                    #else:
-                    #    logging.info(f"Cluster Name: {cluster_ids[cluster_id]}")
-                    #    logging.info(f"Cluster ID: {cluster_id}")
-                    #    logging.info(f"Cluster Status: {status}")
-                    #    logging.info("No session data\n")                        
+                    else:
+                        logging.info(f"Cluster Name: {cluster_ids[cluster_id]}")
+                        logging.info(f"Cluster ID: {cluster_id}")
+                        logging.info(f"Cluster Status: {status}")
+                        logging.info("No session data\n")                        
 
                 # Calculate total_temp_dbram and total_db_ram from session data
                 total_temp_dbram = 0.0
@@ -364,7 +396,7 @@ def monitor_and_manage_clusters():
                         temp_db_ram = float(raw_temp_db_ram) if raw_temp_db_ram not in (None, "", "NULL") else 0.0
 
                         # Handle None safely for db_ram
-                        raw_db_ram = session[5]
+                        raw_db_ram = session[4]
                         db_ram = int(raw_db_ram) if raw_db_ram not in (None, "", "NULL") else 0
 
                     except (ValueError, IndexError) as e:
@@ -381,15 +413,15 @@ def monitor_and_manage_clusters():
                 logging.info(f"Total Temp DB RAM: {round(total_temp_dbram,1)}")
                 logging.info(f"Total DB RAM: {total_db_ram}")
 
-                number_of_sessions = len(sessions)
-                logging.info(f"Active Sessions: {number_of_sessions}\n")
+                #number_of_sessions = len(sessions)
+                logging.info(f"Active Sessions: {number_of_active_sessions}\n")
                 # logging.info(f"Checking thresholds with Total DB RAM: {round(total_db_ram,1)}; Temp DB RAM: {round(total_temp_dbram,1)}; Sessions: {number_of_sessions}")
                 
                 if total_temp_dbram is not None:
                     upper_threshold = 0.5 * total_db_ram
                     lower_threshold = 0.2 * (total_db_ram - float(data['db_ram']))
-                    upper_threshold_sessions = 0.5 * get_active_session_slots(clusters)
-                    lower_threshold_sessions = 0.3 * (get_active_session_slots(clusters)-100)
+                    upper_threshold_sessions = 0.7 * get_active_session_slots(clusters)
+                    lower_threshold_sessions = 0.5 * (get_active_session_slots(clusters)-100)
 
                     logging.info("THRESHOLDS:")
                     logging.info(f"Temp DB RAM Upper Threshold: {upper_threshold}")
@@ -397,11 +429,11 @@ def monitor_and_manage_clusters():
                     logging.info(f"Active Sessions Upper Threshold: {upper_threshold_sessions}")
                     logging.info(f"Active Sessions Lower Threshold: {lower_threshold_sessions}\n")
 
-                    if total_temp_dbram > upper_threshold or number_of_sessions > upper_threshold_sessions:
-                        if total_temp_dbram > upper_threshold and number_of_sessions < upper_threshold_sessions:
+                    if total_temp_dbram > upper_threshold or number_of_active_sessions > upper_threshold_sessions:
+                        if total_temp_dbram > upper_threshold and number_of_active_sessions < upper_threshold_sessions:
                             logging.info(f"Total TEMP_DB_RAM ({round(total_temp_dbram,1)}) is above the upper threshold ({upper_threshold}).")
-                        elif number_of_sessions > upper_threshold_sessions and total_temp_dbram < upper_threshold:
-                            logging.info(f"Number of sessions ({number_of_sessions}) is above the upper threshold for sessions ({upper_threshold_sessions}).")
+                        elif number_of_active_sessions > upper_threshold_sessions and total_temp_dbram < upper_threshold:
+                            logging.info(f"Number of sessions ({number_of_active_sessions}) is above the upper threshold for sessions ({upper_threshold_sessions}).")
                         else:
                             logging.info(f"Total TEMP_DB_RAM and Number of sessions are above the thresholds.")
 
@@ -422,19 +454,19 @@ def monitor_and_manage_clusters():
                                         # logging.info("Resetting threshold_exceeded_time after cluster start.")
 
                                         if wait_for_cluster_stability():
-                                            cluster_readiness_end_time = time.time() + (10 * 60)  # Set warm-up period
+                                            cluster_readiness_end_time = time.time() + (5 * 60)  # Set warm-up period
 
-                                            logging.info("The cluster is stable. Wait for 10 minutes for the cluster to warm up. No action will be taken during this time.")
+                                            logging.info("The cluster is stable. Wait for 5 minutes for the cluster to warm up. No action will be taken during this time.")
 
                                             # Wait for the warm-up period **here** instead of later in the loop
-                                            time.sleep(10 * 60)  
+                                            time.sleep(5 * 60)  
 
                                             logging.info("The worker cluster has warmed up. Now we proceed with the monitoring.")
                                         else:
                                             logging.error("Cluster stability check failed after starting.")
                                             continue
-                    elif total_temp_dbram < lower_threshold and number_of_sessions < lower_threshold_sessions and count_queued_sessions(sessions) == 0:
-                        logging.info(f"Total TEMP_DB_RAM {round(total_temp_dbram,1)} and number of sessions {number_of_sessions} are below the threshold.")
+                    elif total_temp_dbram < lower_threshold and number_of_active_sessions < lower_threshold_sessions and count_queued_sessions(sessions) == 0:
+                        logging.info(f"Total TEMP_DB_RAM {round(total_temp_dbram,1)} and number of sessions {number_of_active_sessions} are below the threshold.")
 
                         running_clusters = [c for c in clusters if c['status'].lower() == 'running' and not c.get('mainCluster', False)]
                         if not running_clusters:
